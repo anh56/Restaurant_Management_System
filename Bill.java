@@ -55,4 +55,29 @@ public class Bill {
             System.err.println(e.getMessage());
         }
     }
+    
+    private void updateBill(String cusID){
+        OrderCourse thisOrder = new OrderCourse();
+        int thisOrderID = thisOrder.getCurrOrderID();
+        DateFormat dateFormat = new SimpleDateFormat("MM/dd/yyyy");
+        java.util.Date utilDate = new java.util.Date();
+        String today = dateFormat.format(utilDate);
+        try {
+            String driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver";
+            String url = "jdbc:sqlserver://localhost:1433";
+            Class.forName(driver);
+            Connection conn = DriverManager.getConnection(url, "doanynhi", "cselaba1604");
+            String query = "UPDATE Bill SET BillDate = ?, OrderID = ?  WHERE BillID = ?";
+            PreparedStatement statement = conn.prepareStatement(query);
+            statement.setString(1, today);
+            statement.setInt(2, thisOrderID);
+            statement.setInt(3, billID);
+            statement.execute();
+            conn.close();
+        }
+        catch (Exception e){
+            System.err.println("Got an exception!");
+            System.err.println(e.getMessage());
+        }
+    }
 }
