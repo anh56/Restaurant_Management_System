@@ -8,9 +8,9 @@ import java.sql.SQLException;
 
 public class DisplayQueryResults extends JFrame {
     static final String JDBC_DRIVER = "com.microsoft.sqlserver.jdbc.SQLServerDriver";
-    static final String DATABASE_URL = "jdbc:sqlserver://localhost:1433;databaseName=Books;user=doanynhi;password=cselaba1604";
+    static final String DATABASE_URL = "jdbc:sqlserver://localhost:1433;databaseName=Restaurant;user=doanynhi;password=cselaba1604";
 
-    static final String DEFAULT_QUERY = "SELECT * FROM Restaurant";
+    static final String DEFAULT_QUERY = "SELECT * FROM Course";
 
     private ResultSetTableModel tableModel;
     private JTextArea queryArea;
