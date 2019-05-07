@@ -1,104 +1,152 @@
-import javax.swing.*;
-import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.sql.SQLException;
+import javax.swing.table.AbstractTableModel;
+import java.sql.*;
 
-public class DisplayQueryResults extends JFrame {
-    static final String JDBC_DRIVER = "com.microsoft.sqlserver.jdbc.SQLServerDriver";
-    static final String DATABASE_URL = "jdbc:sqlserver://localhost:1433;databaseName=Restaurant;user=ANH;password=12300";
+// A TableModel that supplies ResultSet data to a JTable.
 
-    static final String DEFAULT_QUERY = "SELECT * FROM Course";
+// ResultSet rows and columns are counted from 1 and JTable
+// rows and columns are counted from 0. When processing
+// ResultSet rows or columns for use in a JTable, it is
+// necessary to add 1 to the row or column number to manipulate
+// the appropriate ResultSet column (i.e., JTable column 0 is
+// ResultSet column 1 and JTable row 0 is ResultSet row 1).
+public class ResultSetTableModel extends AbstractTableModel {
+    private Connection connection;
+    private Statement statement;
+    private ResultSet resultSet;
+    private ResultSetMetaData metaData;
+    private int numberOfRow;
 
-    private ResultSetTableModel tableModel;
-    private JTextArea queryArea;
+    // keep track of database connection status
+    private boolean connectedToDatabase = false;
 
-    public DisplayQueryResults(){
-        super("Displaying Query Results");
-        try{
-            System.setProperty("db2j.system.home", "D:\\Semester 4\\Principles of Database Management\\SQL Server\\MSSQL14.SQLEXPRESS\\MSSQL\\DATA");
-            tableModel = new ResultSetTableModel(JDBC_DRIVER, DATABASE_URL, DEFAULT_QUERY);
-
-            queryArea = new JTextArea(DEFAULT_QUERY, 3, 100);
-            queryArea.setWrapStyleWord(true);
-            queryArea.setLineWrap(true);
-
-            JScrollPane scrollPane = new JScrollPane(queryArea,
-                    ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-                    ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-
-            JButton submitButton = new JButton("Submit Query");
-
-            Box box = Box.createHorizontalBox();
-            box.add(scrollPane);
-            box.add(submitButton);
-
-            JTable resultTable = new JTable(tableModel);
-
-            Container container = getContentPane();
-            container.add(box, BorderLayout.NORTH);
-            container.add(new JScrollPane(resultTable), BorderLayout.CENTER);
-
-            submitButton.addActionListener(
-                    new ActionListener() {
-                        @Override
-                        public void actionPerformed(ActionEvent e) {
-                            try{
-                                tableModel.setQuery(queryArea.getText());
-                            }
-                            catch (SQLException sqlException){
-                                JOptionPane.showMessageDialog(null, sqlException.getMessage(),
-                                        "Database Error", JOptionPane.ERROR_MESSAGE);
-                            }
-
-                            try{
-                                tableModel.setQuery(DEFAULT_QUERY);
-                                queryArea.setText(DEFAULT_QUERY);
-                            }
-                            catch (SQLException sqlException2){
-                                JOptionPane.showMessageDialog(null, sqlException2.getMessage(),
-                                        "Database Error", JOptionPane.ERROR_MESSAGE);
-
-                                tableModel.disconnectFromDatabase();
-
-                                System.exit(1);
-                            }
-                        }
-                    }
-            );
-            setSize(500, 250);
-            setVisible(true);
-        }
-        catch (ClassNotFoundException classNotFound){
-            JOptionPane.showMessageDialog(null, "Database Driver Not Found",
-                    "Driver Not Found", JOptionPane.ERROR_MESSAGE);
-            System.exit(1);
-        }
-        catch (SQLException sqlException){
-            JOptionPane.showMessageDialog(null, sqlException.getMessage(),
-                    "Database Error", JOptionPane.ERROR_MESSAGE);
-
-            tableModel.disconnectFromDatabase();
-
-            System.exit(1);
-        }
-
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-
-        addWindowListener(
-                new WindowAdapter() {
-                    @Override
-                    public void windowClosed(WindowEvent e) {
-                        tableModel.disconnectFromDatabase();
-                        System.exit(0);
-                    }
-                }
+    // initialize resultSet and obtain its meta data object;
+    // determine number of rows
+    public ResultSetTableModel(String driver, String url, String query) throws SQLException, ClassNotFoundException{
+        // load database driver class
+        Class.forName(driver);
+        // connect to database
+        connection = DriverManager.getConnection(url);
+        // create Statement to query database
+        statement = connection.createStatement(
+                ResultSet.TYPE_SCROLL_INSENSITIVE,
+                ResultSet.CONCUR_READ_ONLY
         );
+        // update database connection status
+        connectedToDatabase = true;
+        // set query and execute it
+        setQuery(query);
     }
 
-    public static void main(String args[]){
-        new DisplayQueryResults();
+    // get class that represents column type
+    public Class getColumnClass(int column) throws IllegalStateException{
+        // ensure database connection is available
+        if(!connectedToDatabase)
+            throw new IllegalStateException("Not Connected To Database");
+        // determine Java class of column
+        try {
+            String className = metaData.getColumnClassName(column + 1);
+            // return Class object that represents className
+            return Class.forName(className);
+        }
+        // catch SQLExceptions and ClassNotFoundExceptions
+        catch (Exception exception){
+            exception.printStackTrace();
+        }
+        // if problems occur above, assume type Object
+        return Object.class;
     }
-}
+
+    // get number of columns in ResultSet
+    public int getColumnCount() throws IllegalStateException{
+        // ensure database connection is available
+        if (!connectedToDatabase)
+            throw new IllegalStateException("Not Connected To Database");
+        // determine number of columns
+        try {
+            return metaData.getColumnCount();
+        }
+        // catch SQLExceptions and print error message
+        catch (SQLException sqlException){
+            sqlException.printStackTrace();
+        }
+        // if problems occur above, return 0 for number of columns
+        return 0;
+    }
+
+    // get name of a particular column in ResultSet
+    public String getColumnName(int column) throws IllegalStateException{
+        // get name of a particular column in ResultSet
+        if (!connectedToDatabase)
+            throw new IllegalStateException("Not Connected To Database");
+        // determine column name
+        try {
+            return metaData.getColumnName(column + 1);
+        }
+        // catch SQLExceptions and print error message
+        catch (SQLException sqlException){
+            sqlException.printStackTrace();
+        }
+        // if problems, return empty string for column name
+        return  "";
+    }
+
+    // return number of rows in ResultSet
+    public int getRowCount() throws IllegalStateException{
+        // ensure database connection is available
+        if (!connectedToDatabase)
+            throw new IllegalStateException("Not Connected To Database");
+        return numberOfRow;
+    }
+
+    // obtain value in particular row and column
+    public Object getValueAt(int row, int column) throws IllegalStateException{
+        // ensure database connection is available
+        if (!connectedToDatabase)
+            throw new IllegalStateException("Not Connected To Database");
+        // obtain a value at specified ResultSet row and column
+        try {
+            resultSet.absolute(row + 1);
+            return resultSet.getObject(column + 1);
+        }
+        // catch SQLExceptions and print error message
+        catch (SQLException sqlException){
+            sqlException.printStackTrace();
+        }
+        // if problems, return empty string object
+        return "";
+    }
+
+    // set new database query string
+    public void setQuery(String query) throws SQLException, IllegalStateException{
+        // ensure database connection is available
+        if (!connectedToDatabase)
+            throw new IllegalStateException("Not Connected To Database");
+        // specify query and execute it
+        resultSet = statement.executeQuery(query);
+        // obtain meta data for ResultSet
+        metaData = resultSet.getMetaData();
+        // determine number of rows in ResultSet
+        resultSet.last(); // move to last row
+        numberOfRow = resultSet.getRow(); // get row number
+        // notify JTable that model has changed
+        fireTableStructureChanged();
+    }
+
+    // close Statement and Connection
+    public void disconnectFromDatabase(){
+        // close Statement and Connection
+        try {
+            statement.close();
+            connection.close();
+        }
+        // catch SQLExceptions and print error message
+        catch (SQLException sqlException){
+            sqlException.printStackTrace();
+        }
+        // update database connection status
+        finally {
+            connectedToDatabase = false;
+        }
+    }
+} // end class ResultSetTableModel
+
